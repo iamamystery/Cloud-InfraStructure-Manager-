@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { UserRole, AccountStatus } from '@/types';
+import { AccountStatus } from '@/types';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret';
@@ -8,7 +8,7 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secre
 export interface TokenPayload {
   userId: string;
   email: string;
-  role: UserRole;
+  role: string;
   organizationId?: string;
 }
 
@@ -37,8 +37,8 @@ export function verifyRefreshToken(token: string): TokenPayload {
 }
 
 export function checkRole(
-  userRole: UserRole,
-  allowedRoles: UserRole[]
+  userRole: string,
+  allowedRoles: string[]
 ): boolean {
   return allowedRoles.includes(userRole);
 }

@@ -108,6 +108,13 @@ export async function POST(request: NextRequest) {
     const decoded = verifyToken(token);
     const body = await request.json();
 
+    if (!decoded.organizationId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'BAD_REQUEST', message: 'User is not associated with an organization' } },
+        { status: 400 }
+      );
+    }
+
     // Check organization limits
     const organization = await prisma.organization.findUnique({
       where: { id: decoded.organizationId },
@@ -120,7 +127,7 @@ export async function POST(request: NextRequest) {
 
     if (!organization) {
       return NextResponse.json(
-        { success: false, error: { code: 'ORGANIZATION_NOT_FOUND', message: 'Organization not found' } },
+        { success: false, error: { code: 'NOT_FOUND', message: 'Organization not found' } },
         { status: 404 }
       );
     }
@@ -135,7 +142,7 @@ export async function POST(request: NextRequest) {
     // Create resource
     const resource = await prisma.resource.create({
       data: {
-        organizationId: decoded.organizationId,
+        organizationId: decoded.organizationId!,
         projectId: body.projectId,
         environmentId: body.environmentId,
         cloudProviderId: body.cloudProviderId,
