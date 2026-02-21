@@ -1,0 +1,841 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+enum UserRole {
+  SUPER_ADMIN
+  DEVOPS_ENGINEER
+  VIEWER
+  BILLING_ADMIN
+}
+
+enum SubscriptionTier {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+  DEACTIVATED
+}
+
+model User {
+  id                String          @id @default(uuid())
+  email             String          @unique
+  password          String
+  firstName         String
+  lastName          String
+  role              UserRole        @default(VIEWER)
+  subscriptionTier  SubscriptionTier @default(FREE)
+  accountStatus     AccountStatus   @default(PENDING_VERIFICATION)
+  emailVerified     Boolean         @default(false)
+  emailVerifiedAt   DateTime?
+  lastLoginAt       DateTime?
+  failedLoginAttempts Int          @default(0)
+  lockedUntil       DateTime?
+  avatar            String?
+  phoneNumber       String?
+  timezone          String          @default("UTC")
+  preferences       Json            @default("{}")
+  
+  // Relationships
+  createdOrganizations Organization[] @relation("CreatedBy")
+  memberships         OrganizationMember[]
+  sessions            Session[]
+  passwordResets      PasswordReset[]
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  apiKeys             ApiKey[]
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([email])
+  @@index([role])
+  @@index([accountStatus])
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token        String   @unique
+  expiresAt    DateTime
+  ipAddress    String?
+  userAgent    String?
+  isValid      Boolean  @default(true)
+  lastActivity DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+  @@map("sessions")
+}
+
+model PasswordReset {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+  @@map("password_resets")
+}
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  keyHash     String    @unique
+  keyPrefix   String
+  permissions Json      @default("[]")
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([keyHash])
+  @@map("api_keys")
+}
+
+// ============================================
+// ORGANIZATIONS & TEAMS
+// ============================================
+
+enum OrganizationMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+  GUEST
+}
+
+model Organization {
+  id                String              @id @default(uuid())
+  name              String
+  slug              String              @unique
+  description       String?
+  logo              String?
+  website           String?
+  billingEmail      String
+  subscriptionTier  SubscriptionTier    @default(FREE)
+  subscriptionEndsAt DateTime?
+  maxProjects       Int                 @default(3)
+  maxTeamMembers    Int                 @default(5)
+  maxCloudProviders Int                 @default(2)
+  maxResources      Int                 @default(10)
+  settings          Json                @default("{}")
+  
+  // Relationships
+  createdById       String
+  createdBy         User                @relation("CreatedBy", fields: [createdById], references: [id])
+  members           OrganizationMember[]
+  projects          Project[]
+  cloudProviders    CloudProvider[]
+  resources         Resource[]
+  deployments       Deployment[]
+  environments      Environment[]
+  costReports       CostReport[]
+  alerts            Alert[]
+  alertRules        AlertRule[]
+  auditLogs         AuditLog[]
+  invoices          Invoice[]
+  
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([slug])
+  @@index([subscriptionTier])
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String                 @id @default(uuid())
+  organizationId String
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           OrganizationMemberRole @default(MEMBER)
+  permissions    Json                   @default("[]")
+  joinedAt       DateTime               @default(now())
+  invitedById    String?
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("organization_members")
+}
+
+// ============================================
+// PROJECTS
+// ============================================
+
+model Project {
+  id              String        @id @default(uuid())
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  slug            String
+  status          ProjectStatus @default(ACTIVE)
+  settings        Json          @default("{}")
+  
+  // Relationships
+  environments    Environment[]
+  resources       Resource[]
+  deployments     Deployment[]
+  pipelines       Pipeline[]
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@index([status])
+  @@map("projects")
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+  SUSPENDED
+}
+
+// ============================================
+// ENVIRONMENTS
+// ============================================
+
+enum EnvironmentType {
+  DEVELOPMENT
+  STAGING
+  PRODUCTION
+  TESTING
+}
+
+model Environment {
+  id              String          @id @default(uuid())
+  projectId       String
+  project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  organizationId  String
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name            String
+  type            EnvironmentType
+  description     String?
+  variables       Json            @default("{}")
+  secrets         Json            @default("{}")
+  configFiles     Json            @default("[]")
+  
+  // Relationships
+  resources       Resource[]
+  deployments     Deployment[]
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@index([organizationId])
+  @@map("environments")
+}
+
+// ============================================
+// CLOUD PROVIDERS
+// ============================================
+
+enum CloudProviderType {
+  AWS
+  AZURE
+  GCP
+  DIGITAL_OCEAN
+  ALIBABA_CLOUD
+}
+
+enum CloudProviderStatus {
+  CONNECTED
+  DISCONNECTED
+  ERROR
+  PENDING
+}
+
+model CloudProvider {
+  id                String              @id @default(uuid())
+  organizationId    String
+  organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name              String
+  type              CloudProviderType
+  status            CloudProviderStatus @default(PENDING)
+  
+  // Credentials (encrypted in production)
+  credentials       Json
+  regions           Json                @default("[]")
+  settings          Json                @default("{}")
+  lastSyncedAt      DateTime?
+  errorMessage      String?
+  
+  // Relationships
+  resources         Resource[]
+  costReports       CostReport[]
+  
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([organizationId])
+  @@index([type])
+  @@index([status])
+  @@map("cloud_providers")
+}
+
+// ============================================
+// RESOURCES (VMs, Containers, Databases, etc.)
+// ============================================
+
+enum ResourceType {
+  VIRTUAL_MACHINE
+  CONTAINER
+  CONTAINER_REGISTRY
+  DATABASE
+  STORAGE_BUCKET
+  LOAD_BALANCER
+  NETWORK
+  FIREWALL
+  KUBERNETES_CLUSTER
+  SERVERLESS_FUNCTION
+  CACHE
+  QUEUE
+  TOPIC
+}
+
+enum ResourceStatus {
+  RUNNING
+  STOPPED
+  PENDING
+  ERROR
+  TERMINATED
+  CREATING
+  DELETING
+  UPDATING
+  MAINTENANCE
+}
+
+model Resource {
+  id                String          @id @default(uuid())
+  organizationId    String
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectId         String?
+  project           Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environmentId     String?
+  environment       Environment?    @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  cloudProviderId   String
+  cloudProvider     CloudProvider   @relation(fields: [cloudProviderId], references: [id], onDelete: Cascade)
+  
+  // Resource Details
+  name              String
+  type              ResourceType
+  status            ResourceStatus  @default(PENDING)
+  cloudResourceId   String?         // ID from the cloud provider
+  region            String
+  zone              String?
+  
+  // Specifications
+  specifications    Json            @default("{}")
+  tags              Json            @default("[]")
+  labels            Json            @default("{}")
+  metadata          Json            @default("{}")
+  
+  // Configuration
+  config            Json            @default("{}")
+  networking        Json            @default("{}")
+  securityGroups    Json            @default("[]")
+  
+  // Monitoring
+  metrics           ResourceMetric[]
+  alerts            Alert[]
+  logs              ResourceLog[]
+  
+  // Cost
+  estimatedMonthlyCost Decimal?     @db.Decimal(10, 2)
+  actualCosts         ActualCost[]
+  
+  // Relationships
+  parentResourceId    String?
+  parentResource      Resource?       @relation("ChildResources", fields: [parentResourceId], references: [id], onDelete: SetNull)
+  childResources      Resource[]      @relation("ChildResources")
+  deployments         Deployment[]
+  
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  deletedAt           DateTime?
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([cloudProviderId])
+  @@index([type])
+  @@index([status])
+  @@index([region])
+  @@map("resources")
+}
+
+// ============================================
+// METRICS & MONITORING
+// ============================================
+
+model ResourceMetric {
+  id            String    @id @default(uuid())
+  resourceId    String
+  resource      Resource  @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  metricType    String    // cpu, memory, disk, network, etc.
+  value         Decimal   @db.Decimal(10, 4)
+  unit          String    // percentage, bytes, mbps, etc.
+  timestamp     DateTime  @default(now())
+  metadata      Json      @default("{}")
+
+  @@index([resourceId])
+  @@index([metricType])
+  @@index([timestamp])
+  @@map("resource_metrics")
+}
+
+model ResourceLog {
+  id            String    @id @default(uuid())
+  resourceId    String
+  resource      Resource  @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  level         LogLevel
+  message       String
+  source        String?
+  timestamp     DateTime  @default(now())
+  metadata      Json      @default("{}")
+
+  @@index([resourceId])
+  @@index([level])
+  @@index([timestamp])
+  @@map("resource_logs")
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+  FATAL
+}
+
+// ============================================
+// DEPLOYMENTS & PIPELINES
+// ============================================
+
+enum DeploymentStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+  ROLLING_BACK
+  ROLLED_BACK
+}
+
+model Deployment {
+  id              String            @id @default(uuid())
+  organizationId  String
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectId       String?
+  project         Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environmentId   String?
+  environment     Environment?      @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  resourceId      String?
+  resource        Resource?         @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+  pipelineId      String?
+  pipeline        Pipeline?         @relation(fields: [pipelineId], references: [id], onDelete: SetNull)
+  
+  // Deployment Details
+  name            String
+  version         String
+  status          DeploymentStatus  @default(PENDING)
+  commitHash      String?
+  branch          String?
+  buildNumber     Int?
+  artifacts       Json              @default("[]")
+  
+  // Configuration
+  config          Json              @default("{}")
+  environmentVars Json              @default("{}")
+  
+  // Timestamps
+  startedAt       DateTime?
+  completedAt     DateTime?
+  
+  // Steps
+  steps           DeploymentStep[]
+  
+  // Rollback
+  rollbackToId    String?
+  isRollback      Boolean           @default(false)
+  
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([resourceId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("deployments")
+}
+
+model DeploymentStep {
+  id            String            @id @default(uuid())
+  deploymentId  String
+  deployment    Deployment        @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  name          String
+  order         Int
+  status        DeploymentStatus  @default(PENDING)
+  logs          String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  duration      Int?               // in seconds
+
+  @@index([deploymentId])
+  @@map("deployment_steps")
+}
+
+model Pipeline {
+  id              String       @id @default(uuid())
+  projectId       String
+  project         Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  name            String
+  description     String?
+  repositoryUrl   String
+  branch          String       @default("main")
+  
+  // Pipeline Configuration
+  stages          Json         @default("[]")
+  triggers        Json         @default("{}")
+  config          Json         @default("{}")
+  
+  // Status
+  isActive        Boolean      @default(true)
+  lastRunAt       DateTime?
+  
+  // Relationships
+  deployments     Deployment[]
+  
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([projectId])
+  @@map("pipelines")
+}
+
+// ============================================
+// ALERTS & MONITORING
+// ============================================
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  IGNORED
+}
+
+model Alert {
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  resourceId      String?
+  resource        Resource?    @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+  alertRuleId     String?
+  alertRule       AlertRule?   @relation(fields: [alertRuleId], references: [id], onDelete: SetNull)
+  
+  // Alert Details
+  title           String
+  description     String
+  severity        AlertSeverity
+  status          AlertStatus   @default(OPEN)
+  source          String        // metric, log, custom, etc.
+  
+  // Data
+  metricData      Json?         // snapshot of metric when alert triggered
+  
+  // Resolution
+  acknowledgedBy  String?
+  acknowledgedAt DateTime?
+  resolvedBy      String?
+  resolvedAt      DateTime?
+  resolution      String?
+  
+  // Notifications
+  notificationsSent Json        @default("[]")
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([organizationId])
+  @@index([resourceId])
+  @@index([alertRuleId])
+  @@index([status])
+  @@index([severity])
+  @@index([createdAt])
+  @@map("alerts")
+}
+
+enum AlertCondition {
+  GREATER_THAN
+  LESS_THAN
+  EQUAL_TO
+  NOT_EQUAL_TO
+  GREATER_THAN_OR_EQUAL
+  LESS_THAN_OR_EQUAL
+}
+
+model AlertRule {
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  name            String
+  description     String?
+  isActive        Boolean      @default(true)
+  
+  // Conditions
+  resourceType    ResourceType?
+  metricType      String       // cpu, memory, disk, etc.
+  condition       AlertCondition
+  threshold       Decimal      @db.Decimal(10, 4)
+  duration        Int          @default(5) // in minutes
+  
+  // Notifications
+  channels        Json         @default("[]") // email, slack, webhook, etc.
+  recipients      Json         @default("[]")
+  
+  // Cooldown
+  cooldownMinutes Int          @default(60)
+  lastTriggeredAt DateTime?
+  
+  // Relationships
+  alerts          Alert[]
+  
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([isActive])
+  @@map("alert_rules")
+}
+
+// ============================================
+// COST MANAGEMENT
+// ============================================
+
+model CostReport {
+  id                String          @id @default(uuid())
+  organizationId    String
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  cloudProviderId   String?
+  cloudProvider     CloudProvider?  @relation(fields: [cloudProviderId], references: [id], onDelete: SetNull)
+  
+  // Period
+  periodStart       DateTime
+  periodEnd         DateTime
+  
+  // Costs by Category
+  computeCost       Decimal         @db.Decimal(12, 2)
+  storageCost       Decimal         @db.Decimal(12, 2)
+  networkCost       Decimal         @db.Decimal(12, 2)
+  databaseCost      Decimal         @db.Decimal(12, 2)
+  otherCost         Decimal         @db.Decimal(12, 2)
+  totalCost         Decimal         @db.Decimal(12, 2)
+  
+  // Details
+  breakdown         Json            @default("[]")
+  recommendations   Json            @default("[]")
+  
+  createdAt         DateTime        @default(now())
+
+  @@unique([organizationId, cloudProviderId, periodStart])
+  @@index([organizationId])
+  @@index([cloudProviderId])
+  @@index([periodStart])
+  @@map("cost_reports")
+}
+
+model ActualCost {
+  id            String    @id @default(uuid())
+  resourceId    String
+  resource      Resource  @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  
+  date          DateTime
+  amount        Decimal   @db.Decimal(10, 2)
+  category      String    // compute, storage, network, etc.
+  
+  createdAt     DateTime  @default(now())
+
+  @@unique([resourceId, date, category])
+  @@index([resourceId])
+  @@index([date])
+  @@map("actual_costs")
+}
+
+// ============================================
+// BILLING & SUBSCRIPTIONS
+// ============================================
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  UNCOLLECTIBLE
+  VOID
+}
+
+model Invoice {
+  id              String          @id @default(uuid())
+  organizationId  String
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  stripeInvoiceId String?
+  
+  // Invoice Details
+  invoiceNumber   String          @unique
+  status          InvoiceStatus   @default(DRAFT)
+  
+  // Amounts
+  subtotal        Decimal         @db.Decimal(10, 2)
+  taxAmount       Decimal         @db.Decimal(10, 2) @default(0)
+  total           Decimal         @db.Decimal(10, 2)
+  amountPaid      Decimal         @db.Decimal(10, 2) @default(0)
+  amountDue       Decimal         @db.Decimal(10, 2)
+  currency        String          @default("USD")
+  
+  // Period
+  periodStart     DateTime
+  periodEnd       DateTime
+  
+  // Dates
+  createdAt       DateTime        @default(now())
+  dueDate         DateTime
+  paidAt          DateTime?
+  
+  // Line Items
+  lineItems       Json            @default("[]")
+  
+  @@index([organizationId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("invoices")
+}
+
+// ============================================
+// NOTIFICATIONS & AUDITING
+// ============================================
+
+enum NotificationType {
+  ALERT
+  DEPLOYMENT
+  COST
+  SYSTEM
+  BILLING
+  TEAM
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Notification {
+  id              String              @id @default(uuid())
+  userId          String
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type            NotificationType
+  priority        NotificationPriority @default(MEDIUM)
+  title           String
+  message         String
+  data            Json                @default("{}")
+  
+  read            Boolean             @default(false)
+  readAt          DateTime?
+  
+  createdAt       DateTime            @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([read])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  DEPLOY
+  SCALE
+  RESTART
+  STOP
+  START
+  CONFIGURE
+  INVITE
+  REMOVE
+  BILLING
+}
+
+model AuditLog {
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId          String?
+  user            User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  action          AuditAction
+  entityType      String       // resource, deployment, user, etc.
+  entityId        String?
+  
+  // Details
+  previousValues  Json?
+  newValues       Json?
+  metadata        Json         @default("{}")
+  
+  // Request Info
+  ipAddress       String?
+  userAgent       String?
+  
+  createdAt       DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
