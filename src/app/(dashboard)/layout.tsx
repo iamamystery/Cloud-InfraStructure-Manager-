@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,6 +23,7 @@ import {
   GitBranch,
   Menu,
   X,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -34,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { mockAuth, mockData } from '@/lib/mock-data';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -42,7 +45,7 @@ const navigation = [
   { name: 'Deployments', href: '/deployments', icon: GitBranch },
   { name: 'Monitoring', href: '/monitoring', icon: Activity },
   { name: 'Cost Analytics', href: '/costs', icon: Wallet },
-  { name: 'Alerts', href: '/alerts', icon: Bell, badge: 3 },
+  { name: 'Alerts', href: '/alerts', icon: Bell },
   { name: 'Team', href: '/team', icon: Users },
   { name: 'API & Docs', href: '/api-docs', icon: FileCode },
   { name: 'Settings', href: '/settings', icon: Settings },
@@ -53,9 +56,39 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
+  const [alertsCount, setAlertsCount] = useState(0);
   const pathname = usePathname();
+
+  useEffect(() => {
+    // Check if user is logged in
+    const loggedIn = mockAuth.isLoggedIn();
+    if (!loggedIn) {
+      router.push('/login/');
+      return;
+    }
+    
+    setUser(mockAuth.getUser());
+    setAlertsCount(mockData.getAlerts().filter((a: any) => a.status === 'OPEN').length);
+    setIsLoading(false);
+  }, [router]);
+
+  const handleLogout = () => {
+    mockAuth.logout();
+    router.push('/login/');
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -86,23 +119,32 @@ export default function DashboardLayout({
               {navigation.map((item) => (
                 <Link
                   key={item.name}
-                  href={item.href}
+                  href={item.href + '/'}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                    pathname === item.href
+                    pathname === item.href || pathname === item.href + '/'
                       ? 'bg-primary/10 text-primary'
                       : 'hover:bg-muted'
                   }`}
                 >
                   <item.icon className="h-5 w-5" />
                   <span>{item.name}</span>
-                  {item.badge && (
+                  {item.name === 'Alerts' && alertsCount > 0 && (
                     <Badge variant="destructive" className="ml-auto">
-                      {item.badge}
+                      {alertsCount}
                     </Badge>
                   )}
                 </Link>
               ))}
+              <div className="pt-4 border-t mt-4">
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center space-x-3 px-4 py-3 rounded-lg text-destructive hover:bg-destructive/10 w-full"
+                >
+                  <LogOut className="h-5 w-5" />
+                  <span>Logout</span>
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
@@ -116,7 +158,7 @@ export default function DashboardLayout({
       >
         {/* Logo */}
         <div className="h-16 flex items-center px-4 border-b">
-          <Link href="/dashboard" className="flex items-center space-x-3">
+          <Link href="/dashboard/" className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
               <Cloud className="h-6 w-6 text-primary" />
             </div>
@@ -140,9 +182,9 @@ export default function DashboardLayout({
           {navigation.map((item) => (
             <Link
               key={item.name}
-              href={item.href}
-              className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-3 py-2.5 rounded-lg transition-colors group relative ${
-                pathname === item.href
+              href={item.href + '/'}
+              className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2.5 rounded-lg transition-colors group relative ${
+                pathname === item.href || pathname === item.href + '/'
                   ? 'bg-primary/10 text-primary'
                   : 'hover:bg-muted text-muted-foreground hover:text-foreground'
               }`}
@@ -160,12 +202,12 @@ export default function DashboardLayout({
                   </motion.span>
                 )}
               </AnimatePresence>
-              {item.badge && !sidebarCollapsed && (
+              {item.name === 'Alerts' && alertsCount > 0 && !sidebarCollapsed && (
                 <Badge variant="destructive" className="ml-auto">
-                  {item.badge}
+                  {alertsCount}
                 </Badge>
               )}
-              {sidebarCollapsed && item.badge && (
+              {sidebarCollapsed && item.name === 'Alerts' && alertsCount > 0 && (
                 <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
               )}
               {sidebarCollapsed && (
@@ -186,8 +228,8 @@ export default function DashboardLayout({
                 className={`w-full ${sidebarCollapsed ? 'justify-center px-2' : 'justify-start'} h-auto py-2`}
               >
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src="/avatar.png" />
-                  <AvatarFallback>JD</AvatarFallback>
+                  <AvatarImage src={user?.avatar || '/avatar.png'} />
+                  <AvatarFallback>{user?.firstName?.[0]}{user?.lastName?.[0]}</AvatarFallback>
                 </Avatar>
                 <AnimatePresence>
                   {!sidebarCollapsed && (
@@ -195,19 +237,20 @@ export default function DashboardLayout({
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="ml-3 text-left flex-1"
+                      className="ml-3 text-left flex-1 min-w-0"
                     >
-                      <p className="text-sm font-medium">John Doe</p>
-                      <p className="text-xs text-muted-foreground">DevOps Engineer</p>
+                      <p className="text-sm font-medium truncate">{user?.firstName} {user?.lastName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{user?.role?.replace('_', ' ')}</p>
                     </motion.div>
                   )}
                 </AnimatePresence>
+                {!sidebarCollapsed && <ChevronDown className="ml-2 h-4 w-4 text-muted-foreground" />}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push('/settings/')}>
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
               </DropdownMenuItem>
@@ -216,7 +259,7 @@ export default function DashboardLayout({
                 Security
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
+              <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                 <LogOut className="mr-2 h-4 w-4" />
                 Log out
               </DropdownMenuItem>

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Cloud,
@@ -31,137 +32,79 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-
-const stats = [
-  {
-    name: 'Total Resources',
-    value: '1,284',
-    change: '+12.5%',
-    trend: 'up',
-    icon: Server,
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-500/10',
-  },
-  {
-    name: 'Active Instances',
-    value: '892',
-    change: '+8.2%',
-    trend: 'up',
-    icon: Cloud,
-    color: 'text-green-500',
-    bgColor: 'bg-green-500/10',
-  },
-  {
-    name: 'Monthly Cost',
-    value: '$12,450',
-    change: '-5.4%',
-    trend: 'down',
-    icon: Wallet,
-    color: 'text-orange-500',
-    bgColor: 'bg-orange-500/10',
-  },
-  {
-    name: 'Uptime',
-    value: '99.98%',
-    change: '+0.02%',
-    trend: 'up',
-    icon: Activity,
-    color: 'text-purple-500',
-    bgColor: 'bg-purple-500/10',
-  },
-];
-
-const resourceDistribution = [
-  { name: 'AWS', value: 45, color: '#FF9900' },
-  { name: 'Azure', value: 30, color: '#0078D4' },
-  { name: 'GCP', value: 25, color: '#4285F4' },
-];
-
-const costData = [
-  { name: 'Jan', compute: 4200, storage: 2800, network: 1200 },
-  { name: 'Feb', compute: 4500, storage: 2900, network: 1300 },
-  { name: 'Mar', compute: 4800, storage: 3000, network: 1400 },
-  { name: 'Apr', compute: 4700, storage: 2950, network: 1350 },
-  { name: 'May', compute: 5100, storage: 3200, network: 1500 },
-  { name: 'Jun', compute: 5400, storage: 3400, network: 1600 },
-];
-
-const recentActivity = [
-  {
-    id: 1,
-    action: 'Deployed new VM',
-    resource: 'web-server-prod-01',
-    status: 'success',
-    time: '2 minutes ago',
-    user: 'John Doe',
-  },
-  {
-    id: 2,
-    action: 'Scaled database',
-    resource: 'postgres-primary',
-    status: 'success',
-    time: '15 minutes ago',
-    user: 'Jane Smith',
-  },
-  {
-    id: 3,
-    action: 'Created backup',
-    resource: 'mongodb-cluster',
-    status: 'pending',
-    time: '32 minutes ago',
-    user: 'John Doe',
-  },
-  {
-    id: 4,
-    action: 'Restarted service',
-    resource: 'api-gateway',
-    status: 'failed',
-    time: '1 hour ago',
-    user: 'System',
-  },
-];
-
-const alerts = [
-  {
-    id: 1,
-    severity: 'critical',
-    message: 'High CPU usage on web-server-prod-01',
-    time: '5 minutes ago',
-  },
-  {
-    id: 2,
-    severity: 'warning',
-    message: 'Storage capacity at 85% on database-primary',
-    time: '1 hour ago',
-  },
-  {
-    id: 3,
-    severity: 'info',
-    message: 'New security update available for nginx',
-    time: '3 hours ago',
-  },
-];
+import { mockData, mockStats, resourceDistribution, mockCostData, type Alert, type Activity as ActivityType } from '@/lib/mock-data';
 
 export default function DashboardPage() {
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [activities, setActivities] = useState<ActivityType[]>([]);
+  const [resources, setResources] = useState<any[]>([]);
+  const [stats, setStats] = useState(mockStats);
+
+  useEffect(() => {
+    // Load mock data
+    setAlerts(mockData.getAlerts().slice(0, 5));
+    setActivities(mockData.getActivities().slice(0, 5));
+    setResources(mockData.getResources());
+  }, []);
+
+  const statsCards = [
+    {
+      name: 'Total Resources',
+      value: stats.totalResources.toString(),
+      change: '+12.5%',
+      trend: 'up',
+      icon: Server,
+      color: 'text-blue-500',
+      bgColor: 'bg-blue-500/10',
+    },
+    {
+      name: 'Active Instances',
+      value: stats.activeResources.toString(),
+      change: '+8.2%',
+      trend: 'up',
+      icon: Cloud,
+      color: 'text-green-500',
+      bgColor: 'bg-green-500/10',
+    },
+    {
+      name: 'Monthly Cost',
+      value: `$${stats.monthlyCost.toLocaleString()}`,
+      change: '-5.4%',
+      trend: 'down',
+      icon: Wallet,
+      color: 'text-orange-500',
+      bgColor: 'bg-orange-500/10',
+    },
+    {
+      name: 'Uptime',
+      value: '99.98%',
+      change: '+0.02%',
+      trend: 'up',
+      icon: Activity,
+      color: 'text-purple-500',
+      bgColor: 'bg-purple-500/10',
+    },
+  ];
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground mt-1">
             Overview of your cloud infrastructure and resources
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline">Export Report</Button>
-          <Button>Add Resource</Button>
+          <Button variant="outline" size="sm">Export Report</Button>
+          <Button size="sm">Add Resource</Button>
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat, index) => (
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        {statsCards.map((stat, index) => (
           <motion.div
             key={stat.name}
             initial={{ opacity: 0, y: 20 }}
@@ -169,23 +112,23 @@ export default function DashboardPage() {
             transition={{ delay: index * 0.1 }}
           >
             <Card>
-              <CardContent className="p-6">
+              <CardContent className="p-4 sm:p-6">
                 <div className="flex items-center justify-between">
                   <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                    <stat.icon className={`h-6 w-6 ${stat.color}`} />
+                    <stat.icon className={`h-5 w-5 sm:h-6 sm:w-6 ${stat.color}`} />
                   </div>
-                  <div className={`flex items-center text-sm ${stat.trend === 'up' ? 'text-green-500' : 'text-red-500'}`}>
+                  <div className={`flex items-center text-xs sm:text-sm ${stat.trend === 'up' ? 'text-green-500' : 'text-red-500'}`}>
                     {stat.trend === 'up' ? (
-                      <ArrowUpRight className="h-4 w-4 mr-1" />
+                      <ArrowUpRight className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                     ) : (
-                      <ArrowDownRight className="h-4 w-4 mr-1" />
+                      <ArrowDownRight className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                     )}
                     {stat.change}
                   </div>
                 </div>
                 <div className="mt-4">
-                  <p className="text-2xl font-bold">{stat.value}</p>
-                  <p className="text-sm text-muted-foreground">{stat.name}</p>
+                  <p className="text-xl sm:text-2xl font-bold">{stat.value}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">{stat.name}</p>
                 </div>
               </CardContent>
             </Card>
@@ -194,7 +137,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts Row */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
         {/* Cost Overview */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -202,14 +145,14 @@ export default function DashboardPage() {
           transition={{ delay: 0.4 }}
         >
           <Card className="h-full">
-            <CardHeader>
-              <CardTitle>Cost Overview</CardTitle>
-              <CardDescription>Monthly cost breakdown by category</CardDescription>
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="text-lg sm:text-xl">Cost Overview</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">Monthly cost breakdown by category</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
+            <CardContent className="p-4 sm:p-6 pt-0">
+              <div className="h-[250px] sm:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={costData}>
+                  <AreaChart data={mockCostData}>
                     <defs>
                       <linearGradient id="colorCompute" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
@@ -221,8 +164,8 @@ export default function DashboardPage() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
+                    <XAxis dataKey="name" fontSize={12} />
+                    <YAxis fontSize={12} />
                     <Tooltip />
                     <Area type="monotone" dataKey="compute" stackId="1" stroke="#8884d8" fill="url(#colorCompute)" name="Compute" />
                     <Area type="monotone" dataKey="storage" stackId="1" stroke="#82ca9d" fill="url(#colorStorage)" name="Storage" />
@@ -241,20 +184,20 @@ export default function DashboardPage() {
           transition={{ delay: 0.5 }}
         >
           <Card className="h-full">
-            <CardHeader>
-              <CardTitle>Resource Distribution</CardTitle>
-              <CardDescription>Resources by cloud provider</CardDescription>
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="text-lg sm:text-xl">Resource Distribution</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">Resources by cloud provider</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="h-[300px] flex items-center justify-center">
+            <CardContent className="p-4 sm:p-6 pt-0">
+              <div className="h-[200px] sm:h-[250px] flex items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={resourceDistribution}
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
+                      innerRadius={40}
+                      outerRadius={70}
                       paddingAngle={5}
                       dataKey="value"
                     >
@@ -266,11 +209,11 @@ export default function DashboardPage() {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="flex justify-center gap-6 mt-4">
+              <div className="flex flex-wrap justify-center gap-3 sm:gap-6 mt-4">
                 {resourceDistribution.map((item) => (
                   <div key={item.name} className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="text-sm">{item.name} ({item.value}%)</span>
+                    <span className="text-xs sm:text-sm">{item.name} ({item.value}%)</span>
                   </div>
                 ))}
               </div>
@@ -280,7 +223,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Activity & Alerts Row */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
         {/* Recent Activity */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -288,35 +231,35 @@ export default function DashboardPage() {
           transition={{ delay: 0.6 }}
         >
           <Card>
-            <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
-              <CardDescription>Latest actions across your infrastructure</CardDescription>
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="text-lg sm:text-xl">Recent Activity</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">Latest actions across your infrastructure</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6 pt-0">
               <div className="space-y-4">
-                {recentActivity.map((activity) => (
-                  <div key={activity.id} className="flex items-start gap-4">
-                    <div className={`mt-1 p-2 rounded-lg ${
+                {activities.map((activity) => (
+                  <div key={activity.id} className="flex items-start gap-3 sm:gap-4">
+                    <div className={`mt-1 p-1.5 sm:p-2 rounded-lg flex-shrink-0 ${
                       activity.status === 'success' ? 'bg-green-500/10' :
                       activity.status === 'failed' ? 'bg-red-500/10' :
                       'bg-yellow-500/10'
                     }`}>
                       {activity.status === 'success' ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 text-green-500" />
                       ) : activity.status === 'failed' ? (
-                        <AlertCircle className="h-4 w-4 text-red-500" />
+                        <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 text-red-500" />
                       ) : (
-                        <Clock className="h-4 w-4 text-yellow-500" />
+                        <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-500" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">{activity.action}</p>
-                      <p className="text-sm text-muted-foreground truncate">
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">
                         {activity.resource}
                       </p>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex flex-wrap items-center gap-1 sm:gap-2 mt-1">
                         <span className="text-xs text-muted-foreground">{activity.user}</span>
-                        <span className="text-xs text-muted-foreground">•</span>
+                        <span className="text-xs text-muted-foreground hidden sm:inline">•</span>
                         <span className="text-xs text-muted-foreground">{activity.time}</span>
                       </div>
                     </div>
@@ -324,7 +267,7 @@ export default function DashboardPage() {
                       activity.status === 'success' ? 'default' :
                       activity.status === 'failed' ? 'destructive' :
                       'secondary'
-                    }>
+                    } className="text-xs flex-shrink-0">
                       {activity.status}
                     </Badge>
                   </div>
@@ -341,23 +284,23 @@ export default function DashboardPage() {
           transition={{ delay: 0.7 }}
         >
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="p-4 sm:p-6 flex flex-row items-center justify-between">
               <div>
-                <CardTitle>Active Alerts</CardTitle>
-                <CardDescription>Issues requiring attention</CardDescription>
+                <CardTitle className="text-lg sm:text-xl">Active Alerts</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">Issues requiring attention</CardDescription>
               </div>
-              <Badge variant="destructive">{alerts.length} Active</Badge>
+              <Badge variant="destructive" className="flex-shrink-0">{alerts.filter(a => a.status === 'OPEN').length} Active</Badge>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6 pt-0">
               <div className="space-y-4">
                 {alerts.map((alert) => (
-                  <div key={alert.id} className="flex items-start gap-4">
-                    <div className={`mt-1 p-2 rounded-lg ${
+                  <div key={alert.id} className="flex items-start gap-3 sm:gap-4">
+                    <div className={`mt-1 p-1.5 sm:p-2 rounded-lg flex-shrink-0 ${
                       alert.severity === 'critical' ? 'bg-red-500/10' :
                       alert.severity === 'warning' ? 'bg-yellow-500/10' :
                       'bg-blue-500/10'
                     }`}>
-                      <AlertCircle className={`h-4 w-4 ${
+                      <AlertCircle className={`h-3 w-3 sm:h-4 sm:w-4 ${
                         alert.severity === 'critical' ? 'text-red-500' :
                         alert.severity === 'warning' ? 'text-yellow-500' :
                         'text-blue-500'
@@ -371,7 +314,7 @@ export default function DashboardPage() {
                       alert.severity === 'critical' ? 'destructive' :
                       alert.severity === 'warning' ? 'secondary' :
                       'outline'
-                    }>
+                    } className="text-xs flex-shrink-0">
                       {alert.severity}
                     </Badge>
                   </div>
